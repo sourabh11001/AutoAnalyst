@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoAnalyst Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        :root { --bg-color: #0B1120; --chat-bg: #111827; }
+        body { background-color: var(--bg-color); color: #E2E8F0; font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+
+        .message-row { display: flex; gap: 12px; margin-bottom: 24px; width: 100%; }
+        .message-row.user { flex-direction: row-reverse; }
+        
+        .message-bubble { 
+            max-width: 85%; padding: 16px; font-size: 0.95rem; line-height: 1.6; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); 
+            overflow-wrap: anywhere; word-break: normal; min-width: 0; 
+        }
+        @media (max-width: 768px) { .message-bubble { max-width: 95%; } }
+
+        .user .message-bubble { background: #2563EB; color: white; border-radius: 18px 18px 2px 18px; }
+        .ai .message-bubble { background-color: #1E293B; border: 1px solid #334155; color: #E2E8F0; border-radius: 18px 18px 18px 2px; }
+
+        .hidden-content { display: none; margin-top: 10px; animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .thought-box { background: #172033; border-left: 3px solid #6366F1; padding: 12px; border-radius: 4px; font-size: 0.9em; color: #94A3B8; overflow-x: auto; }
+        .code-box { border-radius: 8px; border: 1px solid #334155; margin-top: 10px; max-width: 100%; overflow: hidden; }
+        pre { overflow-x: auto; margin: 0; padding: 0; max-width: 100%; }
+
+        .toggle-btn {
+            background: #0F172A; border: 1px solid #334155; color: #94A3B8;
+            font-size: 0.75rem; font-weight: 600; padding: 6px 12px; rounded-md;
+            cursor: pointer; display: inline-flex; items-center; gap: 6px; margin-right: 8px; margin-bottom: 8px;
+            transition: all 0.2s;
+        }
+        .toggle-btn:hover { border-color: #3B82F6; color: white; background: #1E293B; }
+        .toggle-btn.active { background: #3B82F6; color: white; border-color: #3B82F6; }
+
+        .avatar { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .user .avatar { background: #2563EB; color: white; }
+        .ai .avatar { background: #10B981; color: white; }
+
+        .chip { background: #1E293B; border: 1px solid #334155; color: #94A3B8; transition: all 0.2s; }
+        .chip:hover { border-color: #3B82F6; color: white; background: #2563EB; transform: translateY(-2px); }
+        .typing-dot { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: bounce 1.4s infinite ease-in-out both; }
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        @keyframes bounce { 0%, 80%, 100% { transform: scale(0); } 40% { transform: scale(1); } }
+        
+        .suggestion-btn {
+            text-align: left; width: 100%; padding: 10px; font-size: 0.85rem; color: #94A3B8;
+            background: #1E293B; border: 1px solid #334155; border-radius: 8px; transition: all 0.2s;
+            margin-bottom: 8px; line-height: 1.4; white-space: normal;
+        }
+        .suggestion-btn:hover { border-color: #60A5FA; color: #FFFFFF; background: #2563EB1A; transform: translateX(2px); }
+
+        /* Report Button */
+        #report-btn {
+            width: 100%; margin-top: 10px; background: linear-gradient(135deg, #2563EB, #1D4ED8);
+            color: white; padding: 12px; border-radius: 12px; font-weight: 600; text-align: center;
+            border: 1px solid #3B82F6; shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.3);
+            transition: all 0.2s; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        #report-btn:hover { transform: translateY(-2px); shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.4); }
+        #report-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="h-16 flex justify-between items-center px-6 border-b border-gray-800 bg-[#0F172A] z-20 shadow-md shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold mono shadow-lg">AA</div>
+            <div><h1 class="text-md font-semibold text-white">AutoAnalyst</h1><p class="text-[10px] text-gray-400 font-medium tracking-wider">ENTERPRISE EDITION</p></div>
+        </div>
+        <div id="status-badge" class="bg-gray-800/50 text-gray-400 px-3 py-1.5 rounded-full text-xs font-mono border border-gray-700 flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-gray-500"></div> NO DATA
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        <aside class="w-80 bg-[#0F172A] border-r border-gray-800 p-6 flex flex-col gap-6 hidden md:flex overflow-y-auto shrink-0 z-10">
+            <div onclick="document.getElementById('file-upload').click()" class="border-2 border-dashed border-gray-700 rounded-2xl p-6 text-center hover:border-blue-500 hover:bg-gray-800/30 transition cursor-pointer group">
+                <input type="file" id="file-upload" class="hidden" accept=".csv,.xlsx">
+                <div class="w-12 h-12 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:bg-blue-600 group-hover:text-white transition shadow-lg">
+                    <svg class="w-6 h-6 text-gray-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                </div>
+                <span class="text-sm font-medium text-gray-300 group-hover:text-white">Upload Dataset</span>
+            </div>
+            
+            <button id="report-btn" onclick="generateReport()" disabled>
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Export PDF Report
+            </button>
+            
+            <div id="stats-widget" class="hidden flex flex-col gap-4 opacity-0 transition-opacity duration-500">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Data Overview</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-gray-800/50 p-4 rounded-2xl border border-gray-700/50"><div class="text-2xl font-bold text-white mono" id="stat-rows">0</div><div class="text-[10px] text-gray-400 uppercase mt-1">Rows</div></div>
+                    <div class="bg-gray-800/50 p-4 rounded-2xl border border-gray-700/50"><div class="text-2xl font-bold text-white mono" id="stat-cols">0</div><div class="text-[10px] text-gray-400 uppercase mt-1">Cols</div></div>
+                </div>
+            </div>
+
+            <div id="suggestions-widget" class="hidden flex flex-col gap-3 opacity-0 transition-opacity duration-500">
+                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider">Recommended Analysis</h3>
+                <div id="suggestion-list" class="flex flex-col"></div>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col bg-[#0B1120] relative min-w-0">
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 md:p-10 scroll-smooth">
+                <div class="message-row ai">
+                    <div class="avatar">🤖</div>
+                    <div class="message-bubble shadow-xl">
+                        <h3 class="text-white mb-2">System Online</h3>
+                        <p class="text-gray-300">Upload a CSV file to begin analysis.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="p-6 pb-8 bg-gray-900/50 backdrop-blur border-t border-gray-800 shrink-0">
+                <div id="chips-container" class="flex gap-2 overflow-x-auto pb-4 mb-1 hidden">
+                    <button onclick="fillInput('Show me a summary')" class="chip px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap">📝 Summary</button>
+                    <button onclick="fillInput('Show me the missing values')" class="chip px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap">🔍 Missing Values</button>
+                    <button onclick="fillInput('Train a model to predict ')" class="chip px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap">🔮 Predict Target</button>
+                </div>
+                <div class="relative max-w-4xl mx-auto">
+                    <input type="text" id="user-input" class="w-full bg-gray-800 text-white rounded-2xl pl-6 pr-16 py-4 border border-gray-700 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none shadow-2xl transition-all" placeholder="Ask a question..." disabled>
+                    <button id="send-btn" class="absolute right-2 top-2 bottom-2 aspect-square bg-blue-600 hover:bg-blue-500 text-white rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-lg" disabled>➤</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentDatasetId = null;
+        const API_URL = "http://127.0.0.1:8000/api";
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+
+        document.getElementById('file-upload').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            addMessage("System", `Uploading <strong>${file.name}</strong>...`);
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const res = await fetch(`${API_URL}/upload`, { method: 'POST', body: formData });
+                if (!res.ok) throw new Error("Upload Failed");
+                const data = await res.json();
+                currentDatasetId = data.dataset_id || (data.data ? data.data.dataset_id : null);
+                if (!currentDatasetId) throw new Error("No ID");
+
+                const statsRes = await fetch(`${API_URL}/analyze/${currentDatasetId}`);
+                const statsData = await statsRes.json();
+                const stats = statsData.data || statsData; 
+
+                document.getElementById('stat-rows').innerText = stats.rows;
+                document.getElementById('stat-cols').innerText = stats.cols;
+                
+                userInput.disabled = false;
+                document.getElementById('send-btn').disabled = false;
+                document.getElementById('report-btn').disabled = false; // Enable Report Button
+                document.getElementById('chips-container').classList.remove('hidden');
+                document.getElementById('stats-widget').classList.remove('hidden');
+                document.getElementById('stats-widget').classList.remove('opacity-0');
+                
+                const badge = document.getElementById('status-badge');
+                badge.className = "bg-emerald-500/10 text-emerald-400 px-3 py-1.5 rounded-full text-xs font-mono border border-emerald-500/20 flex items-center gap-2";
+                badge.innerHTML = `<div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div> ACTIVE`;
+
+                addMessage("System", "Running Auto-Discovery Scan...");
+                const scanRes = await fetch(`${API_URL}/autoscan/${currentDatasetId}`);
+                const scanData = await scanRes.json();
+                
+                let scanText = scanData.response;
+                const questionMatch = scanText.match(/<QUESTIONS>([\s\S]*?)<\/QUESTIONS>/);
+                
+                if (questionMatch) {
+                    try {
+                        const questions = JSON.parse(questionMatch[1]);
+                        scanText = scanText.replace(questionMatch[0], ""); 
+                        const suggestionList = document.getElementById('suggestion-list');
+                        suggestionList.innerHTML = ""; 
+                        questions.forEach(q => {
+                            const btn = document.createElement('button');
+                            btn.className = "suggestion-btn";
+                            btn.innerHTML = `<span class="text-blue-400 mr-2">✦</span> ${q}`;
+                            btn.onclick = () => { fillInput(q); sendMessage(); };
+                            suggestionList.appendChild(btn);
+                        });
+                        const w = document.getElementById('suggestions-widget');
+                        w.classList.remove('hidden');
+                        setTimeout(() => w.classList.remove('opacity-0'), 100);
+                    } catch(e) { console.error("JSON Parse Error", e); }
+                }
+                addMessage("AI", scanText);
+
+            } catch (err) {
+                addMessage("System", "❌ " + err.message);
+            }
+        });
+
+        async function generateReport() {
+            if (!currentDatasetId) return;
+            addMessage("System", "Generating PDF Report... This may take a moment.");
+            try {
+                const res = await fetch(`${API_URL}/report/${currentDatasetId}`);
+                if (!res.ok) throw new Error("Report generation failed");
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `AutoAnalyst_Report_${currentDatasetId.slice(0,5)}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                addMessage("System", "✅ Report Downloaded Successfully!");
+            } catch (err) {
+                addMessage("System", "❌ Error generating report: " + err.message);
+            }
+        }
+
+        async function sendMessage() {
+            const text = userInput.value.trim();
+            if (!text) return;
+            addMessage("User", text);
+            userInput.value = '';
+            
+            const loadingId = "loading-" + Date.now();
+            chatContainer.insertAdjacentHTML('beforeend', `<div class="message-row ai" id="${loadingId}"><div class="avatar">🤖</div><div class="message-bubble"><div class="flex gap-1"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div></div></div>`);
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+
+            try {
+                const res = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dataset_id: currentDatasetId, query: text })
+                });
+                const data = await res.json();
+                document.getElementById(loadingId).remove();
+
+                let responseText = data.response;
+                let controlsHtml = "";
+
+                const thoughtMatch = responseText.match(/<THOUGHT>([\s\S]*?)<\/THOUGHT>/);
+                if (thoughtMatch) {
+                    responseText = responseText.replace(thoughtMatch[0], "");
+                    const tId = "thought-" + Date.now();
+                    controlsHtml += `<button class="toggle-btn" onclick="toggle('${tId}', this)">🧠 Reasoning</button><div id="${tId}" class="hidden-content thought-box">${marked.parse(thoughtMatch[1])}</div>`;
+                }
+
+                const codeMatch = responseText.match(/<CODE>([\s\S]*?)<\/CODE>/);
+                if (codeMatch) {
+                    responseText = responseText.replace(codeMatch[0], "");
+                    const cId = "code-" + Date.now();
+                    controlsHtml += `<button class="toggle-btn" onclick="toggle('${cId}', this)">💻 Code</button><div id="${cId}" class="hidden-content code-box"><pre><code class="language-python">${codeMatch[1].trim()}</code></pre></div>`;
+                }
+
+                let chartConfig = null;
+                const chartRegex = /<CHART>([\s\S]*?)<\/CHART>/;
+                const match = responseText.match(chartRegex);
+                if (match) {
+                    responseText = responseText.replace(chartRegex, "");
+                    try { chartConfig = JSON.parse(match[1]); } catch(e){}
+                }
+
+                addMessage("AI", controlsHtml + responseText);
+                if (chartConfig) addChart(chartConfig);
+
+            } catch (err) {
+                document.getElementById(loadingId).remove();
+                addMessage("System", "Error: " + err.message);
+            }
+        }
+
+        userInput.addEventListener('keydown', (e) => e.key === 'Enter' && sendMessage());
+        document.getElementById('send-btn').addEventListener('click', sendMessage);
+
+        function fillInput(text) { userInput.value = text; userInput.focus(); }
+
+        window.toggle = function(id, btn) {
+            const el = document.getElementById(id);
+            if (el.style.display === "block") { el.style.display = "none"; btn.classList.remove("active"); } 
+            else { el.style.display = "block"; btn.classList.add("active"); }
+        };
+
+        function addMessage(sender, text) {
+            const isUser = sender === 'User';
+            const isSystem = sender === 'System';
+            let html = '';
+            if (isSystem) {
+                const color = text.includes('Error') ? 'red' : 'blue';
+                html = `<div class="flex justify-center mb-6"><div class="bg-${color}-900/30 text-${color}-200 border border-${color}-500/30 px-4 py-2 rounded-lg text-xs font-mono">${text}</div></div>`;
+            } else {
+                html = `<div class="message-row ${isUser ? 'user' : 'ai'}"><div class="avatar shadow-lg">${isUser ? '👤' : '🤖'}</div><div class="message-bubble">${isUser ? text : marked.parse(text)}</div></div>`;
+            }
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            document.querySelectorAll('pre code').forEach((block) => { hljs.highlightElement(block); });
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+        }
+
+        function addChart(config) {
+            const chartId = "chart-" + Date.now();
+            const html = `<div class="message-row ai"><div class="avatar">📊</div><div class="message-bubble w-full max-w-3xl !p-0 bg-gray-900 border border-gray-700 rounded-2xl"><div class="p-4 bg-[#0F172A] relative" style="height: 350px;"><canvas id="${chartId}"></canvas></div></div></div>`;
+            chatContainer.insertAdjacentHTML('beforeend', html);
+            const ctx = document.getElementById(chartId).getContext('2d');
+            config.options = config.options || {};
+            config.options.maintainAspectRatio = false;
+            config.options.plugins = { legend: { labels: { color: '#94a3b8' } } };
+            config.options.scales = { y: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } }, x: { grid: { display: false }, ticks: { color: '#64748b' } } };
+            new Chart(ctx, config);
+            chatContainer.scrollTo({ top: chatContainer.scrollHeight, behavior: 'smooth' });
+        }
+    </script>
+</body>
+</html>
